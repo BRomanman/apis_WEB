@@ -6,6 +6,7 @@ import com.clinica.api.personal_service.dto.UsuarioResponse;
 import com.clinica.api.personal_service.model.Usuario;
 import com.clinica.api.personal_service.repository.DoctorRepository;
 import com.clinica.api.personal_service.repository.UsuarioRepository;
+import com.clinica.api.personal_service.security.Sha256PasswordEncoder;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import java.util.List;
@@ -22,10 +23,16 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final DoctorRepository doctorRepository;
+    private final Sha256PasswordEncoder sha256PasswordEncoder;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, DoctorRepository doctorRepository) {
+    public UsuarioService(
+        UsuarioRepository usuarioRepository,
+        DoctorRepository doctorRepository,
+        Sha256PasswordEncoder sha256PasswordEncoder
+    ) {
         this.usuarioRepository = usuarioRepository;
         this.doctorRepository = doctorRepository;
+        this.sha256PasswordEncoder = sha256PasswordEncoder;
     }
 
     public List<UsuarioResponse> findAllUsuarios() {
@@ -46,6 +53,7 @@ public class UsuarioService {
     public Usuario saveUsuario(Usuario usuario) {
         Usuario safeUsuario = Objects.requireNonNull(usuario, "Usuario entity must not be null");
         ensurePayloadNotAdmin(safeUsuario);
+        hashPasswordIfPresent(safeUsuario);
         return usuarioRepository.save(safeUsuario);
     }
 
@@ -70,7 +78,7 @@ public class UsuarioService {
         
         // CRÍTICO: Solo cambiamos la contraseña si viene una nueva
         if (safeChanges.getContrasena() != null && !safeChanges.getContrasena().isEmpty()) {
-            existente.setContrasena(safeChanges.getContrasena());
+            existente.setContrasena(sha256PasswordEncoder.encode(safeChanges.getContrasena()));
         }
         
         if (safeChanges.getRol() != null) existente.setRol(safeChanges.getRol());
@@ -93,7 +101,8 @@ public class UsuarioService {
             throw new EntityNotFoundException("Correo o contraseña incorrectos");
         }
         Usuario usuario = opt.get();
-        if (usuario.getContrasena() == null || !usuario.getContrasena().equals(safeRequest.getContrasena())) {
+        if (usuario.getContrasena() == null
+            || !sha256PasswordEncoder.matches(safeRequest.getContrasena(), usuario.getContrasena())) {
             throw new EntityNotFoundException("Correo o contraseña incorrectos");
         }
         LoginResponse resp = new LoginResponse();
@@ -152,5 +161,15 @@ public class UsuarioService {
         return usuario != null
             && usuario.getRol() != null
             && ADMIN_ROLE_NAME.equalsIgnoreCase(usuario.getRol().getNombre());
+    }
+
+    private void hashPasswordIfPresent(Usuario usuario) {
+        if (usuario == null) {
+            return;
+        }
+        String rawPassword = usuario.getContrasena();
+        if (rawPassword != null && !rawPassword.isBlank()) {
+            usuario.setContrasena(sha256PasswordEncoder.encode(rawPassword));
+        }
     }
 }

@@ -13,6 +13,7 @@ import com.clinica.api.personal_service.model.Rol;
 import com.clinica.api.personal_service.model.Usuario;
 import com.clinica.api.personal_service.repository.DoctorRepository;
 import com.clinica.api.personal_service.repository.UsuarioRepository;
+import com.clinica.api.personal_service.security.Sha256PasswordEncoder;
 import jakarta.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +33,9 @@ class UsuarioServiceTest {
 
     @Mock
     private DoctorRepository doctorRepository;
+
+    @Mock
+    private Sha256PasswordEncoder sha256PasswordEncoder;
 
     @InjectMocks
     private UsuarioService usuarioService;
@@ -74,7 +78,8 @@ class UsuarioServiceTest {
     void login_returnsDoctorInfo() {
         Usuario usuario = usuario(5L, "doctor");
         usuario.setCorreo("medico@demo.com");
-        usuario.setContrasena("secreto");
+        String hashedPassword = "hashed-secret";
+        usuario.setContrasena(hashedPassword);
 
         when(usuarioRepository.findByCorreo("medico@demo.com")).thenReturn(Optional.of(usuario));
 
@@ -82,6 +87,7 @@ class UsuarioServiceTest {
         doctor.setId(9L);
         when(doctorRepository.findByUsuario_IdAndActivoTrue(5L)).thenReturn(Optional.of(doctor));
 
+        when(sha256PasswordEncoder.matches("secreto", hashedPassword)).thenReturn(true);
         LoginRequest request = new LoginRequest();
         request.setCorreo("medico@demo.com");
         request.setContrasena("secreto");

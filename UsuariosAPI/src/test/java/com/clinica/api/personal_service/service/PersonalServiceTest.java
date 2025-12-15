@@ -7,7 +7,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.clinica.api.personal_service.model.Doctor;
+import com.clinica.api.personal_service.model.Usuario;
 import com.clinica.api.personal_service.repository.DoctorRepository;
+import com.clinica.api.personal_service.security.Sha256PasswordEncoder;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +24,9 @@ class PersonalServiceTest {
 
     @Mock
     private DoctorRepository doctorRepository;
+
+    @Mock
+    private Sha256PasswordEncoder sha256PasswordEncoder;
 
     @InjectMocks
     private PersonalService personalService;
@@ -58,6 +63,22 @@ class PersonalServiceTest {
 
         assertThat(saved.getActivo()).isTrue();
         verify(doctorRepository).save(doctor);
+    }
+
+    @Test
+    @DisplayName("saveDoctor codifica la contraseña del usuario asociado")
+    void saveDoctor_hashesUsuarioPassword() {
+        Doctor doctor = doctor(true);
+        Usuario usuario = new Usuario();
+        usuario.setContrasena("plano");
+        doctor.setUsuario(usuario);
+        when(sha256PasswordEncoder.encode("plano")).thenReturn("hashed");
+        when(doctorRepository.save(any(Doctor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Doctor saved = personalService.saveDoctor(doctor);
+
+        assertThat(saved.getUsuario().getContrasena()).isEqualTo("hashed");
+        verify(sha256PasswordEncoder).encode("plano");
     }
 
     @Test
